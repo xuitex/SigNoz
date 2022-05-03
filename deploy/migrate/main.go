@@ -320,12 +320,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	timePeriod := 60000000000 // seconds
+	timePeriod := uint64(60000000000) // seconds
 	for _, service := range services {
 		fmt.Printf("\nProcessing %v rows of service %s \n", service.NumTotal, service.ServiceName)
 		start := uint64(service.Maxt.UnixNano())
+		rps := service.NumTotal / (uint64(service.Maxt.Unix()) - uint64(service.Mint.Unix()))
+		fmt.Printf("\nRPS: %v \n", rps)
+		timePeriod = 70000000000000 / rps
+		fmt.Printf("\nTime Period: %v \n", timePeriod)
 		for start >= uint64(service.Mint.UnixNano()) {
-			batchSpans, err := readSpans(conn, service.ServiceName, start, start-uint64(timePeriod))
+			batchSpans, err := readSpans(conn, service.ServiceName, start, start-timePeriod)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -337,7 +341,7 @@ func main() {
 				}
 				fmt.Println("Migrated till: ", time.Unix(0, int64(start-uint64(timePeriod))))
 			}
-			start -= uint64(timePeriod)
+			start -= timePeriod
 		}
 	}
 
