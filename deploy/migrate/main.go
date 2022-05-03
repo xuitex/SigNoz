@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -218,7 +219,7 @@ func readTotalRows(conn clickhouse.Conn) (uint64, error) {
 func readServices(conn clickhouse.Conn) ([]DBResponseServices, error) {
 	ctx := context.Background()
 	result := []DBResponseServices{}
-	if err := conn.Select(ctx, &result, "SELECT serviceName, MIN(timestamp) as mint, MAX(timestamp) as maxt, count() as numTotal FROM signoz_index group by serviceName"); err != nil {
+	if err := conn.Select(ctx, &result, "SELECT serviceName, MIN(timestamp) as mint, MAX(timestamp) as maxt, count() as numTotal FROM signoz_index group by serviceName order by serviceName"); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -320,13 +321,34 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	skip := true
 	timePeriod := uint64(60000000000) // seconds
+	serviceFlag := flag.String("service", "", "serviceName")
+	timeFlag := flag.Uint64("timeNano", 0, "timestamp in nano seconds")
+
+	flag.Parse()
+
 	for _, service := range services {
-		fmt.Printf("\nProcessing %v rows of service %s \n", service.NumTotal, service.ServiceName)
 		start := uint64(service.Maxt.UnixNano())
-		rps := service.NumTotal / (uint64(service.Maxt.Unix()) - uint64(service.Mint.Unix()))
+
+		if *serviceFlag != "" && skip {
+			if service.ServiceName != *serviceFlag {
+				continue
+			} else {
+				fmt.Println("Starting from service: ", service.ServiceName)
+				skip = false
+				if *timeFlag != 0 {
+					start = *timeFlag
+					fmt.Printf("\nProcessing remaining rows of serviceName: %s and Timestamp: %s \n", service.ServiceName, time.Unix(0, int64(start)))
+				}
+			}
+		}
+		if skip {
+			fmt.Printf("\nProcessing %v rows of serviceName %s \n", service.NumTotal, service.ServiceName)
+		}
+		rps := service.NumTotal / ((uint64(service.Maxt.Unix()) - uint64(service.Mint.Unix())) + 1)
 		fmt.Printf("\nRPS: %v \n", rps)
-		timePeriod = 70000000000000 / rps
+		timePeriod = 70000000000000 / (rps + 1)
 		fmt.Printf("\nTime Period: %v \n", timePeriod)
 		for start >= uint64(service.Mint.UnixNano()) {
 			batchSpans, err := readSpans(conn, service.ServiceName, start, start-timePeriod)
@@ -339,7 +361,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Println("Migrated till: ", time.Unix(0, int64(start-uint64(timePeriod))))
+				fmt.Printf("ServiceName: %s \nMigrated till: %s \nTimeNano: %v \n", service.ServiceName, time.Unix(0, int64(start-uint64(timePeriod))), start-uint64(timePeriod))
 			}
 			start -= timePeriod
 		}
