@@ -347,9 +347,9 @@ func main() {
 			fmt.Printf("\nProcessing %v rows of serviceName %s \n", service.NumTotal, service.ServiceName)
 		}
 		rps := service.NumTotal / ((uint64(service.Maxt.Unix()) - uint64(service.Mint.Unix())) + 1)
-		fmt.Printf("\nRPS: %v \n", rps)
+		// fmt.Printf("\nRPS: %v \n", rps)
 		timePeriod = 70000000000000 / (rps + 1)
-		fmt.Printf("\nTime Period: %v \n", timePeriod)
+		// fmt.Printf("\nTime Period: %v \n", timePeriod)
 		for start >= uint64(service.Mint.UnixNano()) {
 			batchSpans, err := readSpans(conn, service.ServiceName, start, start-timePeriod)
 			if err != nil {
@@ -361,7 +361,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				fmt.Printf("ServiceName: %s \nMigrated till: %s \nTimeNano: %v \n", service.ServiceName, time.Unix(0, int64(start-uint64(timePeriod))), start-uint64(timePeriod))
+				fmt.Printf("ServiceName: %s \nMigrated till: %s \nTimeNano: %v \n_________**********************************_________ \n", service.ServiceName, time.Unix(0, int64(start-uint64(timePeriod))), start-uint64(timePeriod))
 			}
 			start -= timePeriod
 		}
